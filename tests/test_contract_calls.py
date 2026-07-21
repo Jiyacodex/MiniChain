@@ -27,7 +27,7 @@ if msg_data == 'increment':
     # but we can set the success return value in theory, but python exec doesn't return values directly. 
     # We will just verify it updated storage!
 """
-        deploy_tx1 = self._sign(Transaction(self.sender_pk, None, amount=0, nonce=0, data=code_target, gas_limit=50000, max_fee_per_gas=1))
+        deploy_tx1 = self._sign(Transaction(self.sender_pk, None, amount=0, nonce=0, data=code_target, gas_limit=50000, fee_per_gas=1))
         receipt1 = self.state.apply_transaction(deploy_tx1)
         self.assertEqual(receipt1.status, 1)
         target_addr = receipt1.contract_address
@@ -39,13 +39,13 @@ target = "{target_addr}"
 call_contract(target, 'increment', 0)
 storage['called'] = True
 """
-        deploy_tx2 = self._sign(Transaction(self.sender_pk, None, amount=0, nonce=1, data=code_caller, gas_limit=50000, max_fee_per_gas=1))
+        deploy_tx2 = self._sign(Transaction(self.sender_pk, None, amount=0, nonce=1, data=code_caller, gas_limit=50000, fee_per_gas=1))
         receipt2 = self.state.apply_transaction(deploy_tx2)
         self.assertEqual(receipt2.status, 1)
         caller_addr = receipt2.contract_address
 
         # 3. Call caller contract
-        call_tx = self._sign(Transaction(self.sender_pk, caller_addr, amount=0, nonce=2, data="go", gas_limit=50000, max_fee_per_gas=1))
+        call_tx = self._sign(Transaction(self.sender_pk, caller_addr, amount=0, nonce=2, data="go", gas_limit=50000, fee_per_gas=1))
         receipt3 = self.state.apply_transaction(call_tx)
         
         self.assertEqual(receipt3.status, 1)
@@ -62,7 +62,7 @@ storage['called'] = True
 storage['count'] = storage.get('count', 0) + 1
 raise Exception("Deliberate failure")
 """
-        deploy_tx1 = self._sign(Transaction(self.sender_pk, None, amount=0, nonce=0, data=code_target, gas_limit=50000, max_fee_per_gas=1))
+        deploy_tx1 = self._sign(Transaction(self.sender_pk, None, amount=0, nonce=0, data=code_target, gas_limit=50000, fee_per_gas=1))
         receipt1 = self.state.apply_transaction(deploy_tx1)
         self.assertEqual(receipt1.status, 1)
         target_addr = receipt1.contract_address
@@ -74,13 +74,13 @@ storage['called'] = True
 # This should fail and revert everything
 call_contract(target, 'increment', 0)
 """
-        deploy_tx2 = self._sign(Transaction(self.sender_pk, None, amount=0, nonce=1, data=code_caller, gas_limit=50000, max_fee_per_gas=1))
+        deploy_tx2 = self._sign(Transaction(self.sender_pk, None, amount=0, nonce=1, data=code_caller, gas_limit=50000, fee_per_gas=1))
         receipt2 = self.state.apply_transaction(deploy_tx2)
         self.assertEqual(receipt2.status, 1)
         caller_addr = receipt2.contract_address
 
         # 3. Call caller contract
-        call_tx = self._sign(Transaction(self.sender_pk, caller_addr, amount=0, nonce=2, data="go", gas_limit=50000, max_fee_per_gas=1))
+        call_tx = self._sign(Transaction(self.sender_pk, caller_addr, amount=0, nonce=2, data="go", gas_limit=50000, fee_per_gas=1))
         receipt3 = self.state.apply_transaction(call_tx)
         
         # Must fail

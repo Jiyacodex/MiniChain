@@ -55,7 +55,7 @@ class State:
 
         sender_acc = self.get_account(tx.sender)
 
-        total_cost = tx.amount + (getattr(tx, 'gas_limit', 0) * getattr(tx, 'max_fee_per_gas', 0))
+        total_cost = tx.amount + (getattr(tx, 'gas_limit', 0) * getattr(tx, 'fee_per_gas', 0))
         if sender_acc['balance'] < total_cost:
             logger.warning("Invalid tx %s: insufficient balance", tx.tx_id)
             return ValidationStatus.FAILED
@@ -93,8 +93,8 @@ class State:
         if not isinstance(tx.amount, int) or tx.amount < 0:
             return False
         gas_limit = getattr(tx, "gas_limit", 0)
-        max_fee = getattr(tx, "max_fee_per_gas", 0)
-        return isinstance(gas_limit, int) and gas_limit >= 0 and isinstance(max_fee, int) and max_fee >= 0
+        fee_per_gas = getattr(tx, "fee_per_gas", 0)
+        return isinstance(gas_limit, int) and gas_limit >= 0 and isinstance(fee_per_gas, int) and fee_per_gas >= 0
 
     def validate_and_apply_with_status(self, tx):
         """
@@ -125,7 +125,7 @@ class State:
 
     def _apply_validated_tx(self, tx):
         sender = self.accounts[tx.sender]
-        total_cost = tx.amount + (getattr(tx, 'gas_limit', 0) * getattr(tx, 'max_fee_per_gas', 0))
+        total_cost = tx.amount + (getattr(tx, 'gas_limit', 0) * getattr(tx, 'fee_per_gas', 0))
         
         sender['balance'] -= total_cost
         sender['nonce'] += 1
@@ -139,7 +139,7 @@ class State:
             refund_acc['balance'] += tx.amount
             gas_refund = getattr(tx, 'gas_limit', 0) - gas_used
             if gas_refund > 0:
-                refund_acc['balance'] += (gas_refund * getattr(tx, 'max_fee_per_gas', 0))
+                refund_acc['balance'] += (gas_refund * getattr(tx, 'fee_per_gas', 0))
             return Receipt(tx.tx_id, status=0, error_message=error_message, gas_used=gas_used)
 
         # LOGIC BRANCH 1: Contract Deployment
@@ -161,7 +161,7 @@ class State:
             self.create_contract(contract_address, tx.data, initial_balance=tx.amount)
             gas_refund = gas_used - code_gas
             if gas_refund > 0:
-                self.accounts[tx.sender]['balance'] += (gas_refund * getattr(tx, 'max_fee_per_gas', 0))
+                self.accounts[tx.sender]['balance'] += (gas_refund * getattr(tx, 'fee_per_gas', 0))
             return Receipt(tx.tx_id, status=1, contract_address=contract_address, gas_used=code_gas)
 
         # LOGIC BRANCH 2: Contract Call
@@ -185,7 +185,7 @@ class State:
 
             gas_refund = gas_limit - gas_used
             if gas_refund > 0:
-                self.accounts[tx.sender]['balance'] += (gas_refund * getattr(tx, 'max_fee_per_gas', 0))
+                self.accounts[tx.sender]['balance'] += (gas_refund * getattr(tx, 'fee_per_gas', 0))
 
             return Receipt(tx.tx_id, status=1, gas_used=gas_used)
 
