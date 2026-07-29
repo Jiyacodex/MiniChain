@@ -12,6 +12,7 @@ class TestEMATarget(unittest.TestCase):
         chain.avg_block_time = 1000
         chain.current_target = MAX_TARGET - 10
         chain.chain[0].target = MAX_TARGET - 10
+        chain.chain[0].hash = chain.chain[0].compute_hash()
         
         # Fast mining: timestamps only 1ms apart
         # avg = 0.5 * 1 + 0.5 * 1000 = 500.5 (which is < 1000) => target decrements by 1
@@ -36,6 +37,7 @@ class TestEMATarget(unittest.TestCase):
         chain1.avg_block_time = 1000
         chain1.current_target = MAX_TARGET - 10
         chain1.chain[0].target = MAX_TARGET - 10
+        chain1.chain[0].hash = chain1.chain[0].compute_hash()
         
         chain2 = Blockchain()
         chain2.target_block_time = 1000
@@ -43,6 +45,7 @@ class TestEMATarget(unittest.TestCase):
         chain2.avg_block_time = 1000
         chain2.current_target = MAX_TARGET - 10
         chain2.chain[0].target = MAX_TARGET - 10
+        chain2.chain[0].hash = chain2.chain[0].compute_hash()
 
         # Chain 2 mines a fast block, target goes to MAX_TARGET - 11
         block1 = Block(1, chain2.last_block.hash, [], timestamp=chain2.last_block.timestamp + 1, target=chain2.current_target, state_root=chain2.state.state_root())
@@ -51,7 +54,7 @@ class TestEMATarget(unittest.TestCase):
         self.assertEqual(chain2.current_target, MAX_TARGET - 11)
         
         # Reorg chain1 to chain2
-        success, orphans = chain1.resolve_conflicts(chain2.chain)
+        success, _ = chain1.resolve_conflicts(chain2.chain)
         self.assertTrue(success)
         self.assertEqual(chain1.current_target, MAX_TARGET - 11)
 

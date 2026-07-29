@@ -27,7 +27,10 @@ def validate_block_link_and_hash(previous_block, block):
     if block.hash != expected_hash:
         raise ValueError(f"invalid hash {block.hash}")
 
-    if block.target is None or int(block.hash, 16) >= block.target:
+    from .network_config import MAX_TARGET
+    if not isinstance(block.target, int) or block.target <= 0 or block.target > MAX_TARGET:
+        raise ValueError(f"invalid target: {block.target}")
+    if int(block.hash, 16) >= block.target:
         raise ValueError(f"invalid Proof of Work: hash {block.hash} does not satisfy target {block.target}")
 
     if block.timestamp <= previous_block.timestamp:
@@ -48,6 +51,9 @@ class Blockchain:
         self.state = State()
         self.chain_id = "minichain-default"
         self._lock = threading.RLock()
+        import collections
+        self._state_snapshots = collections.OrderedDict()
+        self._max_snapshots = 10
         self._create_genesis_block(genesis_path)
 
     def _create_genesis_block(self, genesis_path):
@@ -90,6 +96,10 @@ class Blockchain:
         raw_target = config.get("target")
         if raw_target is not None:
             self.current_target = int(raw_target, 16) if isinstance(raw_target, str) else int(raw_target)
+            from .network_config import MAX_TARGET
+            if not isinstance(self.current_target, int) or self.current_target <= 0 or self.current_target > MAX_TARGET:
+                logger.error("Genesis target out of bounds: %s", self.current_target)
+                sys.exit(1)
         else:
             from .network_config import MAX_TARGET
             self.current_target = MAX_TARGET
@@ -124,6 +134,7 @@ class Blockchain:
         
         # Snapshot the state exactly after genesis allocation for clean reorg rebuilds
         self._genesis_state_snapshot = self.state.snapshot()
+        self._state_snapshots[genesis_block.hash] = self.state.snapshot()
 
     @property
     def last_block(self):
@@ -218,10 +229,18 @@ class Blockchain:
                 return status
 
             # All transactions valid → commit state and append block
+            if hasattr(temp_state.accounts, 'commit'):
+                temp_state.accounts.commit()
+                temp_state.accounts = temp_state.accounts.backing
             self.state = temp_state
             self.current_target = new_target
             self.avg_block_time = new_avg
             self.chain.append(block)
+            
+            self._state_snapshots[block.hash] = self.state.snapshot()
+            while len(self._state_snapshots) > self._max_snapshots:
+                self._state_snapshots.popitem(last=False)
+            
             return ValidationStatus.VALID
 
     def resolve_conflicts(self, new_chain_list) -> tuple[bool, list]:
@@ -266,15 +285,34 @@ class Blockchain:
 
             temp_state = State()
             temp_state.chain_id = self.chain_id
-            temp_state.restore(self._genesis_state_snapshot)
-
+            
+            fork_base_hash = self.chain[fork_idx - 1].hash if fork_idx > 0 else None
+            
             temp_target = proposed_chain[0].target
             temp_avg_block_time = self.target_block_time
+            
+            if fork_base_hash and fork_base_hash in self._state_snapshots:
+                logger.info("Reorg optimization: Restoring state from in-memory snapshot at block %s", fork_idx - 1)
+                temp_state.restore(self._state_snapshots[fork_base_hash])
+                
+                # Fast forward target and avg_block_time without executing state
+                for i in range(1, fork_idx):
+                    block_time = proposed_chain[i].timestamp - proposed_chain[i-1].timestamp
+                    temp_avg_block_time = self.alpha * block_time + (1 - self.alpha) * temp_avg_block_time
+                    temp_target = self._next_target(temp_target, temp_avg_block_time)
+                
+                start_idx = fork_idx
+            else:
+                temp_state.restore(self._genesis_state_snapshot)
+                start_idx = 1
 
-            for i in range(1, len(proposed_chain)):
+            for i in range(start_idx, len(proposed_chain)):
                 status, temp_target, temp_avg_block_time = self._apply_block(
                     proposed_chain[i - 1], proposed_chain[i], temp_state, temp_target, temp_avg_block_time
                 )
+                if hasattr(temp_state.accounts, 'commit'):
+                    temp_state.accounts.commit()
+                    temp_state.accounts = temp_state.accounts.backing
                 if status != ValidationStatus.VALID:
                     logger.warning("Reorg failed at block %s", proposed_chain[i].index)
                     return False, []
@@ -287,5 +325,11 @@ class Blockchain:
             self.state = temp_state
             self.current_target = temp_target
             self.avg_block_time = temp_avg_block_time
+            
+            # Repopulate snapshots for the new chain tip
+            self._state_snapshots[self.last_block.hash] = self.state.snapshot()
+            while len(self._state_snapshots) > self._max_snapshots:
+                self._state_snapshots.popitem(last=False)
+                
             logger.info("Reorg successful! Switched to new chain tip: Block %s", self.last_block.index)
             return True, orphans

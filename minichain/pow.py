@@ -26,6 +26,7 @@ def mine_block(
     target = target if target is not None else block.target
     if not isinstance(target, int) or target <= 0:
         raise ValueError("Target must be a positive integer.")
+    block.target = target
 
     local_nonce = 0
     header_dict = block.to_header_dict() # Construct header dict once outside loop
