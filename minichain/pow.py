@@ -14,7 +14,7 @@ def calculate_hash(block_dict):
 
 def mine_block(
     block,
-    difficulty=None,
+    target=None,
     max_nonce=None,
     timeout_seconds=None,
     logger=None,
@@ -23,20 +23,19 @@ def mine_block(
     """Mines a block using Proof-of-Work without mutating input block until success."""
     max_nonce = max_nonce if max_nonce is not None else MINING_MAX_NONCE
 
-    difficulty = difficulty if difficulty is not None else block.difficulty
-    if not isinstance(difficulty, int) or difficulty <= 0:
-        raise ValueError("Difficulty must be a positive integer.")
+    target = target if target is not None else block.target
+    if not isinstance(target, int) or target <= 0:
+        raise ValueError("Target must be a positive integer.")
 
-    target = "0" * difficulty
     local_nonce = 0
     header_dict = block.to_header_dict() # Construct header dict once outside loop
     start_time = time.monotonic()
 
     if logger:
         logger.info(
-            "Mining block %s (Difficulty: %s)",
+            "Mining block %s (Target: %s)",
             block.index,
-            difficulty,
+            target,
         )
 
     while True:
@@ -56,8 +55,8 @@ def mine_block(
         header_dict["nonce"] = local_nonce
         block_hash = calculate_hash(header_dict)
 
-        # Check difficulty target
-        if block_hash.startswith(target):
+        # Check target
+        if int(block_hash, 16) < target:
             block.nonce = local_nonce  # Assign only on success
             block.hash = block_hash
             if logger:

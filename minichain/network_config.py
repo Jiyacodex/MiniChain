@@ -14,3 +14,6 @@ DEFAULT_MINING_REWARD = 50
 MAX_FUTURE_BLOCK_TIME_MS = 15000  # Max allowed ms in the future for a block timestamp
 GAS_PER_BYTE = 10  # Cost per byte of state storage written
 MAX_CALL_DEPTH = 10  # Maximum depth for cross-contract calls
+MAX_TARGET = int("F" * 64, 16)
+MIN_TARGET = 1
+

@@ -41,7 +41,7 @@ class Block:
         previous_hash: str,
         transactions: Optional[Sequence[Transaction]] = None,
         timestamp: Optional[float] = None,
-        difficulty: Optional[int] = None,
+        target: Optional[int] = None,
         state_root: Optional[str] = None,
         receipt_root: Optional[str] = None,
         receipts: Optional[Sequence[Receipt]] = None,
@@ -59,7 +59,7 @@ class Block:
             if timestamp is None
             else int(timestamp)
         )
-        self.difficulty: Optional[int] = difficulty
+        self.target: Optional[int] = target
         self.nonce: int = 0
         self.hash: Optional[str] = None
         self.state_root: Optional[str] = state_root
@@ -83,7 +83,7 @@ class Block:
             "state_root": self.state_root,
             "receipt_root": self.receipt_root,
             "timestamp": self.timestamp,
-            "difficulty": self.difficulty,
+            "target": hex(self.target) if self.target is not None else None,
             "nonce": self.nonce,
         }
         # Include miner in header only when present (optional field)
@@ -130,14 +130,12 @@ class Block:
             for r_payload in payload.get("receipts", [])
         ]
         
-        # Safely extract and cast difficulty and timestamp if they exist
-        raw_diff = payload.get("difficulty")
-        if raw_diff is not None:
-            parsed_diff = int(raw_diff)
-            if parsed_diff > 256:
-                raise ValueError(f"Difficulty too large: {parsed_diff}")
+        # Safely extract and cast target and timestamp if they exist
+        raw_target = payload.get("target")
+        if raw_target is not None:
+            parsed_target = int(raw_target, 16) if isinstance(raw_target, str) else int(raw_target)
         else:
-            parsed_diff = None
+            parsed_target = None
 
         raw_ts = payload.get("timestamp")
         parsed_ts = int(raw_ts) if raw_ts is not None else None
@@ -146,7 +144,7 @@ class Block:
             previous_hash=payload["previous_hash"],
             transactions=transactions,
             timestamp=parsed_ts,
-            difficulty=parsed_diff,
+            target=parsed_target,
             state_root=payload.get("state_root"),
             receipt_root=payload.get("receipt_root"),
             receipts=receipts,
