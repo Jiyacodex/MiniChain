@@ -1,6 +1,11 @@
 import time
+import random
 from .serialization import canonical_json_hash
-from .node_config import MINING_MAX_NONCE
+from .node_config import (
+    MINING_MAX_NONCE,
+    MINING_INITIAL_NONCE_MIN,
+    MINING_INITIAL_NONCE_MAX,
+)
 
 
 class MiningExceededError(Exception):
@@ -28,7 +33,8 @@ def mine_block(
         raise ValueError("Target must be a positive integer.")
     block.target = target
 
-    local_nonce = 0
+    start_nonce = random.randint(MINING_INITIAL_NONCE_MIN, MINING_INITIAL_NONCE_MAX)
+    local_nonce = start_nonce
     header_dict = block.to_header_dict() # Construct header dict once outside loop
     start_time = time.monotonic()
 
@@ -42,7 +48,7 @@ def mine_block(
     while True:
 
         # Enforce max_nonce limit before hashing
-        if local_nonce >= max_nonce:
+        if local_nonce - start_nonce >= max_nonce:
             if logger:
                 logger.warning("Max nonce exceeded during mining.")
             raise MiningExceededError("Mining failed: max_nonce exceeded")
