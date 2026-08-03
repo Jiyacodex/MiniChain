@@ -10,66 +10,6 @@ from .network_config import DEFAULT_MINING_REWARD
 
 logger = logging.getLogger(__name__)
 
-class StateJournal:
-    """
-    An in-memory proxy dictionary that caches reads and writes to avoid
-    expensive deep copies of the entire state dictionary during transactions.
-    """
-    def __init__(self, backing_dict):
-        self.backing = backing_dict
-        self.cache = {}
-
-    def __getitem__(self, key):
-        if key not in self.cache:
-            if key in self.backing:
-                import copy
-                self.cache[key] = copy.deepcopy(self.backing[key])
-            else:
-                raise KeyError(key)
-        return self.cache[key]
-
-    def __setitem__(self, key, value):
-        self.cache[key] = value
-
-    def __delitem__(self, key):
-        raise NotImplementedError("Account deletion not supported in StateJournal")
-
-    def __contains__(self, key):
-        return key in self.cache or key in self.backing
-
-    def get(self, key, default=None):
-        try:
-            return self.__getitem__(key)
-        except KeyError:
-            return default
-
-    def items(self):
-        res = self.backing.copy()
-        res.update(self.cache)
-        return res.items()
-
-    def update(self, other_dict):
-        if hasattr(other_dict, 'items'):
-            for k, v in other_dict.items():
-                self[k] = v
-        else:
-            for k, v in other_dict:
-                self[k] = v
-
-    def copy(self):
-        res = self.backing.copy()
-        res.update(self.cache)
-        return res
-
-    def commit(self):
-        """Flushes cached modifications to the backing dictionary."""
-        self.backing.update(self.cache)
-        self.cache.clear()
-
-    def rollback(self):
-        """Discards modifications."""
-        self.cache.clear()
-
 
 class State:
     def __init__(self):
@@ -129,11 +69,9 @@ class State:
     def copy(self):
         """
         Return an independent copy of state for transactional validation.
-        Uses StateJournal for O(1) cloning instead of deepcopy.
         """
-        new_state = State()
-        new_state.accounts = StateJournal(self.accounts)
-        new_state.contract_machine = ContractMachine(new_state)
+        new_state = copy.deepcopy(self)
+        new_state.contract_machine = ContractMachine(new_state) # Reinitialize contract_machine
         new_state.chain_id = self.chain_id
         return new_state
 
@@ -186,22 +124,22 @@ class State:
 
 
     def _apply_validated_tx(self, tx):
-        original_accounts = self.accounts
-        journal = StateJournal(original_accounts)
-        self.accounts = journal
-
         sender = self.accounts[tx.sender]
         total_cost = tx.amount + (getattr(tx, 'gas_limit', 0) * getattr(tx, 'fee_per_gas', 0))
         
         sender['balance'] -= total_cost
         sender['nonce'] += 1
 
+        import copy
+        state_snapshot = copy.deepcopy(self.accounts)
+
         def rollback_and_refund(error_message, gas_used):
-            journal.rollback()
-            self.accounts = original_accounts
+            self.accounts = copy.deepcopy(state_snapshot)
             refund_acc = self.accounts[tx.sender]
-            refund_acc['balance'] -= (gas_used * getattr(tx, 'fee_per_gas', 0))
-            refund_acc['nonce'] += 1
+            refund_acc['balance'] += tx.amount
+            gas_refund = getattr(tx, 'gas_limit', 0) - gas_used
+            if gas_refund > 0:
+                refund_acc['balance'] += (gas_refund * getattr(tx, 'fee_per_gas', 0))
             return Receipt(tx.tx_id, status=0, error_message=error_message, gas_used=gas_used)
 
         # LOGIC BRANCH 1: Contract Deployment
@@ -224,9 +162,6 @@ class State:
             gas_refund = gas_used - code_gas
             if gas_refund > 0:
                 self.accounts[tx.sender]['balance'] += (gas_refund * getattr(tx, 'fee_per_gas', 0))
-            
-            journal.commit()
-            self.accounts = original_accounts
             return Receipt(tx.tx_id, status=1, contract_address=contract_address, gas_used=code_gas)
 
         # LOGIC BRANCH 2: Contract Call
@@ -252,17 +187,12 @@ class State:
             if gas_refund > 0:
                 self.accounts[tx.sender]['balance'] += (gas_refund * getattr(tx, 'fee_per_gas', 0))
 
-            journal.commit()
-            self.accounts = original_accounts
             return Receipt(tx.tx_id, status=1, gas_used=gas_used)
 
         # LOGIC BRANCH 3: Regular Transfer
         receiver = self.get_account(tx.receiver)
         receiver['balance'] += tx.amount
         gas_used = getattr(tx, 'gas_limit', 0)
-        
-        journal.commit()
-        self.accounts = original_accounts
         return Receipt(tx.tx_id, status=1, gas_used=gas_used)
 
     def execute_internal_call(self, sender, receiver_address, amount, payload, gas_limit, depth, is_top_level=False):
