@@ -91,15 +91,15 @@ class Blockchain:
 
         timestamp = config.get("timestamp")
         raw_target = config.get("target")
-        if raw_target is not None:
-            self.current_target = int(raw_target, 16) if isinstance(raw_target, str) else int(raw_target)
-            from .network_config import MAX_TARGET
-            if not isinstance(self.current_target, int) or self.current_target <= 0 or self.current_target > MAX_TARGET:
-                logger.error("Genesis target out of bounds: %s", self.current_target)
-                sys.exit(1)
-        else:
-            from .network_config import MAX_TARGET
-            self.current_target = MAX_TARGET
+        if raw_target is None:
+            logger.error("Genesis block must explicitly specify a 'target'")
+            sys.exit(1)
+            
+        self.current_target = int(raw_target, 16) if isinstance(raw_target, str) else int(raw_target)
+        from .network_config import MAX_TARGET
+        if not isinstance(self.current_target, int) or self.current_target <= 0 or self.current_target > MAX_TARGET:
+            logger.error("Genesis target out of bounds: %s", self.current_target)
+            sys.exit(1)
         
         self.target_block_time = config.get("target_block_time", 10000)
         self.alpha = config.get("alpha", 0.1)
@@ -153,11 +153,13 @@ class Blockchain:
     def _next_target(self, target, avg_block_time):
         """Advance the EMA target control after a block, returning the new value."""
         from .network_config import MAX_TARGET, MIN_TARGET
-        if avg_block_time > self.target_block_time:
-            return min(MAX_TARGET, target + 1)
-        if avg_block_time < self.target_block_time:
-            return max(MIN_TARGET, target - 1)
-        return target
+        
+        # Proportional difficulty adjustment:
+        # If blocks are too slow (avg_block_time > target_block_time), the target INCREASES (easier)
+        # If blocks are too fast (avg_block_time < target_block_time), the target DECREASES (harder)
+        new_target = (target * int(avg_block_time)) // self.target_block_time
+        
+        return max(MIN_TARGET, min(MAX_TARGET, new_target))
 
     def _apply_block(self, prev_block, block, state, target, avg_block_time):
         """
@@ -263,6 +265,17 @@ class Blockchain:
                     return False, []
 
             proposed_chain = self.chain[:fork_idx] + new_chain_list
+
+            # Fast PoW Check: Ensure incoming blocks actually satisfy their declared target
+            # before we trust their target to calculate total_work and rebuild state.
+            from .network_config import MAX_TARGET
+            for b in new_chain_list:
+                if not isinstance(b.target, int) or b.target <= 0 or b.target > MAX_TARGET:
+                    logger.warning("Reorg failed: Fast PoW check failed for block %s (invalid target)", b.index)
+                    return False, []
+                if int(b.hash, 16) >= b.target:
+                    logger.warning("Reorg failed: Fast PoW check failed for block %s (hash >= target)", b.index)
+                    return False, []
 
             current_work = self.get_total_work()
             new_work = self.get_total_work(proposed_chain)

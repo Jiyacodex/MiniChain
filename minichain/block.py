@@ -133,7 +133,10 @@ class Block:
         # Safely extract and cast target and timestamp if they exist
         raw_target = payload.get("target")
         if raw_target is not None:
+            from .network_config import MAX_TARGET
             parsed_target = int(raw_target, 16) if isinstance(raw_target, str) else int(raw_target)
+            if not isinstance(parsed_target, int) or parsed_target <= 0 or parsed_target > MAX_TARGET:
+                raise ValueError(f"invalid target in payload: {parsed_target}")
         else:
             parsed_target = None
 
