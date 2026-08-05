@@ -16,8 +16,7 @@ class TestDeterministicConsensus(unittest.TestCase):
         self.assertEqual(calculate_hash(left), calculate_hash(right))
 
     def test_block_hash_matches_compute_hash(self):
-        block = Block(index=1, previous_hash="abc", transactions=[], timestamp=1234567890)
-        block.target = 2
+        block = Block(index=1, previous_hash="abc", target=2, transactions=[], timestamp=1234567890)
         block.nonce = 7
 
         self.assertEqual(block.compute_hash(), calculate_hash(block.to_header_dict()))

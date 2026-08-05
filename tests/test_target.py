@@ -56,7 +56,7 @@ class TestEMATarget(unittest.TestCase):
         chain2.chain[0].hash = chain2.chain[0].compute_hash()
 
         # Chain 2 mines a fast block
-        block1 = Block(1, chain2.last_block.hash, [], timestamp=chain2.last_block.timestamp + 1, target=chain2.current_target, state_root=chain2.state.state_root())
+        block1 = Block(1, chain2.last_block.hash, chain2.current_target, [], timestamp=chain2.last_block.timestamp + 1, state_root=chain2.state.state_root())
         mine_block(block1)
         chain2.add_block(block1)
         
@@ -71,7 +71,7 @@ class TestEMATarget(unittest.TestCase):
         # Forging a chain with wrong target should be rejected
         forged_chain = list(chain2.chain)
         # Should be expected_target_fast but we provide start_target instead!
-        forged_block = Block(2, chain2.last_block.hash, [], timestamp=chain2.last_block.timestamp + 1000, target=start_target, state_root=chain2.state.state_root())
+        forged_block = Block(2, chain2.last_block.hash, start_target, [], timestamp=chain2.last_block.timestamp + 1000, state_root=chain2.state.state_root())
         mine_block(forged_block)
         forged_chain.append(forged_block)
         

@@ -148,6 +148,9 @@ class Blockchain:
         if chain_list is None:
             with self._lock:
                 chain_list = self.chain
+        # The expected number of hashes required to find a block is (1 << 256) / target.
+        # This sums the expected number of hashes for all blocks in the chain,
+        # which represents the total computational work put into the chain.
         return sum((1 << 256) // (block.target or 1) for block in chain_list)
 
     def _next_target(self, target, avg_block_time):
