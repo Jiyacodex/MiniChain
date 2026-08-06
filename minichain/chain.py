@@ -50,8 +50,8 @@ class Blockchain:
         self.chain_id = "minichain-default"
         self._lock = threading.RLock()
         import collections
-        self._state_snapshots = collections.OrderedDict()
-        self._max_snapshots = 10
+        from .node_config import MAX_STATE_SNAPSHOTS
+        self._state_snapshots = collections.deque(maxlen=MAX_STATE_SNAPSHOTS)
         self._create_genesis_block(genesis_path)
 
     def _create_genesis_block(self, genesis_path):
@@ -124,7 +124,7 @@ class Blockchain:
         
         # Snapshot the state exactly after genesis allocation for clean reorg rebuilds
         self._genesis_state_snapshot = self.state.snapshot()
-        self._state_snapshots[genesis_block.hash] = self.state.snapshot()
+        self._state_snapshots.append((genesis_block.hash, self.state.snapshot()))
 
     @property
     def last_block(self):
@@ -226,9 +226,7 @@ class Blockchain:
             self.avg_block_time = new_avg
             self.chain.append(block)
             
-            self._state_snapshots[block.hash] = self.state.snapshot()
-            while len(self._state_snapshots) > self._max_snapshots:
-                self._state_snapshots.popitem(last=False)
+            self._state_snapshots.append((block.hash, self.state.snapshot()))
             
             return ValidationStatus.VALID
 
@@ -280,9 +278,16 @@ class Blockchain:
             temp_difficulty = proposed_chain[0].difficulty
             temp_avg_block_time = self.target_block_time
             
-            if fork_base_hash and fork_base_hash in self._state_snapshots:
+            snapshot_found = None
+            if fork_base_hash:
+                for h, snap in self._state_snapshots:
+                    if h == fork_base_hash:
+                        snapshot_found = snap
+                        break
+            
+            if snapshot_found is not None:
                 logger.info("Reorg optimization: Restoring state from in-memory snapshot at block %s", fork_idx - 1)
-                temp_state.restore(self._state_snapshots[fork_base_hash])
+                temp_state.restore(snapshot_found)
                 
                 # Fast forward difficulty and avg_block_time without executing state
                 for i in range(1, fork_idx):
@@ -316,9 +321,7 @@ class Blockchain:
             self.avg_block_time = temp_avg_block_time
             
             # Repopulate snapshots for the new chain tip
-            self._state_snapshots[self.last_block.hash] = self.state.snapshot()
-            while len(self._state_snapshots) > self._max_snapshots:
-                self._state_snapshots.popitem(last=False)
+            self._state_snapshots.append((self.last_block.hash, self.state.snapshot()))
                 
             logger.info("Reorg successful! Switched to new chain tip: Block %s", self.last_block.index)
             return True, orphans

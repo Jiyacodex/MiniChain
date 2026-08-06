@@ -14,3 +14,6 @@ MEMPOOL_TX_PER_BLOCK = 100
 
 # Mining Config
 MINING_MAX_NONCE = 10_000_000 # Number of hashes to attempt before yielding the mining thread
+
+# State Config
+MAX_STATE_SNAPSHOTS = 10     # Number of recent block states to keep in memory for reorg optimization
