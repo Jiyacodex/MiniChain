@@ -332,4 +332,7 @@ __pycache__/
 *.so
 *bore.zip
 *bore_bin
+
+# minichain data dir
+.minichain/
 test_env/

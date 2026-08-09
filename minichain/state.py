@@ -6,6 +6,7 @@ from nacl.encoding import HexEncoder
 from .contract import ContractMachine
 from .mpt import Trie
 from .receipt import Receipt
+from .network_config import DEFAULT_MINING_REWARD
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class State:
             trie.put(addr, json.dumps(acc, sort_keys=True))
         return trie.root_hash()
 
-    DEFAULT_MINING_REWARD = 50
+    DEFAULT_MINING_REWARD = DEFAULT_MINING_REWARD
 
     def get_account(self, address):
         if address not in self.accounts:
@@ -54,7 +55,7 @@ class State:
 
         sender_acc = self.get_account(tx.sender)
 
-        total_cost = tx.amount + getattr(tx, 'fee', 0)
+        total_cost = tx.amount + (getattr(tx, 'gas_limit', 0) * getattr(tx, 'fee_per_gas', 0))
         if sender_acc['balance'] < total_cost:
             logger.warning("Invalid tx %s: insufficient balance", tx.tx_id)
             return ValidationStatus.FAILED
@@ -91,8 +92,9 @@ class State:
         """Semantic guard: amount and fee must be non-negative integers."""
         if not isinstance(tx.amount, int) or tx.amount < 0:
             return False
-        fee = getattr(tx, "fee", 0)
-        return isinstance(fee, int) and fee >= 0
+        gas_limit = getattr(tx, "gas_limit", 0)
+        fee_per_gas = getattr(tx, "fee_per_gas", 0)
+        return isinstance(gas_limit, int) and gas_limit >= 0 and isinstance(fee_per_gas, int) and fee_per_gas >= 0
 
     def validate_and_apply_with_status(self, tx):
         """
@@ -120,101 +122,133 @@ class State:
     # Backwards-compatible alias for the receipt-only entry point.
     validate_and_apply = apply_transaction
 
-    def _apply_validated_tx(self, tx):
-        """
-        Apply a transaction that has already passed verify_transaction_logic.
-        Mutates state and returns a Receipt.  Never call this directly — use
-        apply_transaction() or validate_and_apply_with_status() instead.
-        """
-        sender = self.accounts[tx.sender]
 
-        total_cost = tx.amount + getattr(tx, 'fee', 0)
+    def _apply_validated_tx(self, tx):
+        sender = self.accounts[tx.sender]
+        total_cost = tx.amount + (getattr(tx, 'gas_limit', 0) * getattr(tx, 'fee_per_gas', 0))
         
-        # Deduct funds and increment nonce
         sender['balance'] -= total_cost
         sender['nonce'] += 1
+
+        import copy
+        state_snapshot = copy.deepcopy(self.accounts)
+
+        def rollback_and_refund(error_message, gas_used):
+            self.accounts = copy.deepcopy(state_snapshot)
+            refund_acc = self.accounts[tx.sender]
+            refund_acc['balance'] += tx.amount
+            gas_refund = getattr(tx, 'gas_limit', 0) - gas_used
+            if gas_refund > 0:
+                refund_acc['balance'] += (gas_refund * getattr(tx, 'fee_per_gas', 0))
+            return Receipt(tx.tx_id, status=0, error_message=error_message, gas_used=gas_used)
 
         # LOGIC BRANCH 1: Contract Deployment
         if tx.receiver is None or tx.receiver == "":
             contract_address = self.derive_contract_address(tx.sender, tx.nonce)
-            gas_used = getattr(tx, 'fee', 0)
+            gas_used = getattr(tx, 'gas_limit', 0)
 
-            # Prevent redeploy collision
+            from .network_config import GAS_PER_BYTE
+            code_bytes = len(tx.data.encode('utf-8')) if tx.data else 0
+            code_gas = code_bytes * GAS_PER_BYTE
+            
+            if code_gas > gas_used:
+                return rollback_and_refund("Out of gas (Code size exceeded limit)", gas_used)
+
             existing = self.accounts.get(contract_address)
             if existing and existing.get("code"):
-                # Restore sender balance on failure, but keep nonce incremented
-                sender['balance'] += tx.amount
-                return Receipt(tx.tx_id, status=0, error_message="Contract collision", gas_used=gas_used)
+                return rollback_and_refund("Contract collision", gas_used)
 
             self.create_contract(contract_address, tx.data, initial_balance=tx.amount)
-            return Receipt(tx.tx_id, status=1, contract_address=contract_address, gas_used=gas_used)
+            gas_refund = gas_used - code_gas
+            if gas_refund > 0:
+                self.accounts[tx.sender]['balance'] += (gas_refund * getattr(tx, 'fee_per_gas', 0))
+            return Receipt(tx.tx_id, status=1, contract_address=contract_address, gas_used=code_gas)
 
         # LOGIC BRANCH 2: Contract Call
-        # If data is provided (non-empty), treat as contract call
         if tx.data:
-            receiver = self.accounts.get(tx.receiver)
-            gas_limit = getattr(tx, 'fee', 0)
-
-            # Fail if contract does not exist or has no code
-            if not receiver or not receiver.get("code"):
-                # Rollback sender balance on failure, but keep nonce incremented
-                sender['balance'] += tx.amount # Refund amount
-                return Receipt(tx.tx_id, status=0, error_message="Contract not found", gas_used=gas_limit)
-
-            # Credit contract balance
-            receiver['balance'] += tx.amount
-
-            # Undo the value transfer while keeping the nonce increment (used on failure paths).
-            def revert_transfer():
-                receiver['balance'] -= tx.amount
-                sender['balance'] += tx.amount
-
-            result = self.contract_machine.execute(
-                contract_address=tx.receiver,
-                sender_address=tx.sender,
-                payload=tx.data,
+            gas_limit = getattr(tx, 'gas_limit', 0)
+            
+            result = self.execute_internal_call(
+                sender=tx.sender,
+                receiver_address=tx.receiver,
                 amount=tx.amount,
-                gas_limit=gas_limit
+                payload=tx.data,
+                gas_limit=gas_limit,
+                depth=0,
+                is_top_level=True
             )
 
             gas_used = result.get("gas_used", gas_limit)
-            gas_refund = gas_limit - gas_used
-            if gas_refund > 0:
-                sender['balance'] += gas_refund
 
             if not result.get("success"):
-                revert_transfer()
-                return Receipt(tx.tx_id, status=0, error_message=result.get("error", "Execution failed"), gas_used=gas_used)
+                return rollback_and_refund(result.get("error", "Execution failed"), gas_used)
 
-            transfers = result.get("transfers", [])
-            total_transferred_out = sum(t["amount"] for t in transfers)
-
-            if total_transferred_out > receiver['balance']:
-                revert_transfer()
-                return Receipt(tx.tx_id, status=0, error_message="Insufficient contract balance for transfers", gas_used=gas_used)
-
-            # Execution & transfers valid: commit state changes atomically
-            self.update_contract_storage(tx.receiver, result["storage"])
-            
-            receiver['balance'] -= total_transferred_out
-            for t in transfers:
-                target_acc = self.get_account(t["to"])
-                target_acc['balance'] += t["amount"]
+            gas_refund = gas_limit - gas_used
+            if gas_refund > 0:
+                self.accounts[tx.sender]['balance'] += (gas_refund * getattr(tx, 'fee_per_gas', 0))
 
             return Receipt(tx.tx_id, status=1, gas_used=gas_used)
 
         # LOGIC BRANCH 3: Regular Transfer
         receiver = self.get_account(tx.receiver)
         receiver['balance'] += tx.amount
-        return Receipt(tx.tx_id, status=1, gas_used=getattr(tx, 'fee', 0))
+        gas_used = getattr(tx, 'gas_limit', 0)
+        return Receipt(tx.tx_id, status=1, gas_used=gas_used)
+
+    def execute_internal_call(self, sender, receiver_address, amount, payload, gas_limit, depth, is_top_level=False):
+        receiver = self.accounts.get(receiver_address)
+        if not receiver or not receiver.get("code"):
+            return {"success": False, "error": "Contract not found", "gas_used": gas_limit}
+            
+        sender_acc = self.accounts[sender]
+        
+        if not is_top_level:
+            if sender_acc['balance'] < amount:
+                return {"success": False, "error": "Insufficient balance", "gas_used": gas_limit}
+            sender_acc['balance'] -= amount
+            
+        receiver['balance'] += amount
+        
+        result = self.contract_machine.execute(
+            contract_address=receiver_address,
+            sender_address=sender,
+            payload=payload,
+            amount=amount,
+            gas_limit=gas_limit,
+            depth=depth
+        )
+        
+        if not result.get("success"):
+            receiver['balance'] -= amount
+            if not is_top_level:
+                sender_acc['balance'] += amount
+            return result
+            
+        transfers = result.get("transfers", [])
+        total_transferred_out = sum(t["amount"] for t in transfers)
+        if total_transferred_out > receiver['balance']:
+            receiver['balance'] -= amount
+            if not is_top_level:
+                sender_acc['balance'] += amount
+            return {"success": False, "error": "Insufficient contract balance for transfers", "gas_used": result.get("gas_used", gas_limit)}
+            
+        self.update_contract_storage(receiver_address, result["storage"])
+        
+        receiver['balance'] -= total_transferred_out
+        for t in transfers:
+            target_acc = self.get_account(t["to"])
+            target_acc['balance'] += t["amount"]
+            
+        return result
 
     def derive_contract_address(self, sender, nonce):
         raw = f"{sender}:{nonce}".encode()
         return sha256(raw, encoder=HexEncoder).decode()[:40]
 
     def create_contract(self, contract_address, code, initial_balance=0):
+        existing_balance = self.accounts.get(contract_address, {}).get('balance', 0)
         self.accounts[contract_address] = {
-            'balance': initial_balance,
+            'balance': existing_balance + initial_balance,
             'nonce': 0,
             'code': code,
             'storage': {}
