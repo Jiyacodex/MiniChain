@@ -29,7 +29,7 @@ Use this checklist before opening or merging a PR against MiniChain.
 
 - [ ] Branch created off `main`.
 - [ ] Commits are signed off per [DCO.md](../DCO.md).
-- [ ] PR description explains the problem and the fix, per [Contributors.md](../Contributors.md).
+- [ ] PR description explains the problem and the fix, per [CONTRIBUTING.md](../CONTRIBUTING.md).
 - [ ] No unrelated changes bundled into the PR (formatting-only diffs, unrelated files).
 
 ## Security

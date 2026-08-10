@@ -33,5 +33,5 @@ Python 3.10+, no web framework. Core libs: `pynacl` (Ed25519 signing), `trie` (M
 ## Git Workflow
 
 - Branch off `main`.
-- Open PRs against `main`; describe the problem and the fix, per [Contributors.md](Contributors.md).
+- Open PRs against `main`; describe the problem and the fix, per [CONTRIBUTING.md](CONTRIBUTING.md).
 - Sign off commits per the [DCO](DCO.md).
