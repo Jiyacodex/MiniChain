@@ -23,3 +23,6 @@ MINING_INITIAL_NONCE_MIN = 0
 # Keeping the upper limit around 32-bits ensures the nonce string in the JSON block
 # doesn't become unnecessarily large, and avoids cross-language serialization issues.
 MINING_INITIAL_NONCE_MAX = 2**32 - 1
+
+# State Config
+MAX_STATE_SNAPSHOTS = 10     # Number of recent block states to keep in memory for reorg optimization

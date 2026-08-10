@@ -51,6 +51,9 @@ class Blockchain:
         self.state = State()
         self.chain_id = "minichain-default"
         self._lock = threading.RLock()
+        import collections
+        from .node_config import MAX_STATE_SNAPSHOTS
+        self._state_snapshots = collections.deque(maxlen=MAX_STATE_SNAPSHOTS)
         self._create_genesis_block(genesis_path)
 
     def _create_genesis_block(self, genesis_path):
@@ -131,6 +134,7 @@ class Blockchain:
         
         # Snapshot the state exactly after genesis allocation for clean reorg rebuilds
         self._genesis_state_snapshot = self.state.snapshot()
+        self._state_snapshots.append((genesis_block.hash, self.state.snapshot()))
 
     @property
     def last_block(self):
@@ -237,7 +241,9 @@ class Blockchain:
             self.current_target = new_target
             self.avg_block_time = new_avg
             self.chain.append(block)
-            
+
+            self._state_snapshots.append((block.hash, self.state.snapshot()))
+
             return ValidationStatus.VALID
 
     def resolve_conflicts(self, new_chain_list) -> tuple[bool, list]:
@@ -293,12 +299,35 @@ class Blockchain:
 
             temp_state = State()
             temp_state.chain_id = self.chain_id
-            temp_state.restore(self._genesis_state_snapshot)
+
+            fork_base_hash = self.chain[fork_idx - 1].hash if fork_idx > 0 else None
 
             temp_target = proposed_chain[0].target
             temp_avg_block_time = self.target_block_time
+            
+            snapshot_found = None
+            if fork_base_hash:
+                for h, snap in self._state_snapshots:
+                    if h == fork_base_hash:
+                        snapshot_found = snap
+                        break
+            
+            if snapshot_found is not None:
+                logger.info("Reorg optimization: Restoring state from in-memory snapshot at block %s", fork_idx - 1)
+                temp_state.restore(snapshot_found)
+                
+                # Fast forward target and avg_block_time without executing state
+                for i in range(1, fork_idx):
+                    block_time = proposed_chain[i].timestamp - proposed_chain[i-1].timestamp
+                    temp_avg_block_time = self.alpha * block_time + (1 - self.alpha) * temp_avg_block_time
+                    temp_target = self._next_target(temp_target, temp_avg_block_time)
 
-            for i in range(1, len(proposed_chain)):
+                start_idx = fork_idx
+            else:
+                temp_state.restore(self._genesis_state_snapshot)
+                start_idx = 1
+
+            for i in range(start_idx, len(proposed_chain)):
                 status, temp_target, temp_avg_block_time = self._apply_block(
                     proposed_chain[i - 1], proposed_chain[i], temp_state, temp_target, temp_avg_block_time
                 )
@@ -317,6 +346,9 @@ class Blockchain:
             self.state = temp_state
             self.current_target = temp_target
             self.avg_block_time = temp_avg_block_time
-            
+
+            # Repopulate snapshots for the new chain tip
+            self._state_snapshots.append((self.last_block.hash, self.state.snapshot()))
+
             logger.info("Reorg successful! Switched to new chain tip: Block %s", self.last_block.index)
             return True, orphans
