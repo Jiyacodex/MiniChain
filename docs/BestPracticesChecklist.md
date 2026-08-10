@@ -121,7 +121,7 @@
   - *Evidence URL:* [SECURITY.md](../SECURITY.md) — documents private reporting via GitHub Security Advisories and email, response-time expectations, and scope.
 
 - [x] 🟡 **vulnerability_report_private** — If private vulnerability reporting is supported, the method for private submission is documented.
-  - *Evidence URL:* [SECURITY.md § Reporting a Vulnerability](../SECURITY.md#reporting-a-vulnerability) — documents GitHub Private Vulnerability Reporting via the Security tab.
+  - *Evidence URL:* [SECURITY.md § Reporting a Vulnerability](../SECURITY.md#reporting-a-vulnerability) — documents GitHub Private Vulnerability Reporting via the Security tab, plus a Discord DM to a maintainer as a fallback.
 
 - [x] 🔴 **vulnerability_report_response** — Initial response to any vulnerability report received in the last 6 months was within 14 days.
   - *Self-certification note:* `[x]` N/A — *Justification: no vulnerability reports have been received.*
