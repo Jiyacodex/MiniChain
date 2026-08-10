@@ -333,5 +333,10 @@ __pycache__/
 *bore.zip
 *bore_bin
 
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
 # minichain data dir
 .minichain/
