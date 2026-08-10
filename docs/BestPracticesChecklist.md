@@ -29,11 +29,11 @@
 |--------------------|-----|-------|--------|
 | Basics             | 8   | 8     | 🟢     |
 | Change Control     | 3   | 6     | 🟡     |
-| Reporting          | 5   | 8     | 🟡     |
+| Reporting          | 6   | 8     | 🟡     |
 | Quality            | 7   | 11     | 🟡     |
 | Security           | 9   | 9     | 🟢     |
 | Analysis           | 3   | 7     | 🔴     |
-| **Total**          | **35** | **49** | **71%** |
+| **Total**          | **36** | **49** | **73%** |
 ---
 
 ## 🏗️ Basics
@@ -117,11 +117,11 @@
 
 ### Vulnerability Reporting
 
-- [ ] 🔴 **vulnerability_report_process** — A vulnerability reporting process is documented (e.g., `SECURITY.md`).
-  - *Evidence URL:* None — no `SECURITY.md` exists in the repo yet.
+- [x] 🔴 **vulnerability_report_process** — A vulnerability reporting process is documented (e.g., `SECURITY.md`).
+  - *Evidence URL:* [SECURITY.md](../SECURITY.md) — documents private reporting via GitHub Security Advisories and email, response-time expectations, and scope.
 
 - [x] 🟡 **vulnerability_report_private** — If private vulnerability reporting is supported, the method for private submission is documented.
-  - *Evidence URL:* `[x]` N/A — *Justification: no private vulnerability reporting channel exists yet (no `SECURITY.md` / GitHub private vulnerability reporting not enabled).*
+  - *Evidence URL:* [SECURITY.md § Reporting a Vulnerability](../SECURITY.md#reporting-a-vulnerability) — documents GitHub Security Advisories and a private email address.
 
 - [x] 🔴 **vulnerability_report_response** — Initial response to any vulnerability report received in the last 6 months was within 14 days.
   - *Self-certification note:* `[x]` N/A — *Justification: no vulnerability reports have been received.*
@@ -255,7 +255,7 @@
 - For `dynamic_analysis`: consider adversarial input testing as a form of dynamic analysis.
 
 ### MiniChain-Specific Notes
-- Biggest open gaps found by this pass: no `SECURITY.md` (blocks `vulnerability_report_process`), no linter in CI (blocks all three `warnings_*` items), and no static/dynamic analysis tooling (blocks all of Analysis except the N/A items). Tagging a first release would also unlock the Change Control items.
+- Biggest open gaps found by this pass: no linter in CI (blocks all three `warnings_*` items), and no static/dynamic analysis tooling (blocks all of Analysis except the N/A items). Tagging a first release would also unlock the Change Control items. [SECURITY.md](../SECURITY.md) was added, closing the `vulnerability_report_process`/`vulnerability_report_private` gaps.
 - `report_responses` / `enhancement_responses` need a manual pass over GitHub Issues history — not derivable from the repo contents.
 
 ---
