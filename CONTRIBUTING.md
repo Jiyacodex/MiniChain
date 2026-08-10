@@ -39,11 +39,12 @@ Only after that discussion should you start implementation — this is the first
    pytest
    ```
 6. **Sign off your commits** per the [DCO](DCO.md) (`git commit -s`).
-7. **Open a pull request** against `main`, describing the problem and the fix, and linking back to the Discord discussion or issue.
+7. **Add yourself** to [Contributors.md](Contributors.md) if you aren't listed yet.
+8. **Open a pull request** against `main`, describing the problem and the fix, and linking back to the Discord discussion or issue.
 
 ## Getting Help
 
 - Ask questions in the [Stability Nexus Discord](https://discord.gg/YzDKeEfWtS).
 - Please do not contact contributors directly — keep discussion in Discord or GitHub Issues so it stays public and searchable.
 
-All contributions to this project are made under the terms of the [Developer Certificate of Origin](DCO.md).
+All contributions to this project are made under the terms of the [Developer Certificate of Origin](DCO.md). See [Contributors.md](Contributors.md) for the list of people who have contributed.
