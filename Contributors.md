@@ -12,5 +12,5 @@ are made under the terms of the [Developer Certificate of Origin](DCO.md).
 | Name                             | Github Username    | Discord Username   | Email Address                |     
 | -------------------------------- | ------------------ | ------------------ | ---------------------------- |
 | Bruno Woltzenlogel Paleo         | @Zahnentferner     | @b.wp              | zahnentferner@gmail.com      |
-| Siddhant                         | @siddhant          | @siddhantcookie     | TODO                          |
+| Siddhant                         | @siddhant          | @siddhantcookie     | siddhantkk27@gmail.com       |
 | TODO                             | TODO               | TODO               | TODO                         |
