@@ -46,14 +46,4 @@ Only after that discussion should you start implementation — this is the first
 - Ask questions in the [Stability Nexus Discord](https://discord.gg/YzDKeEfWtS).
 - Please do not contact contributors directly — keep discussion in Discord or GitHub Issues so it stays public and searchable.
 
----
-
-## Contributors
-
-By having yourself in the table below, all your contributions to this project
-are made under the terms of the [Developer Certificate of Origin](DCO.md).
-
-| Name                             | Github Username    | Discord Username   | Email Address                |
-| --------------------------------- | ------------------- | ------------------- | ------------------------------ |
-| Bruno Woltzenlogel Paleo          | @Zahnentferner       | @b.wp                | zahnentferner@gmail.com        |
-| TODO                              | TODO                 | TODO                 | TODO                           |
+All contributions to this project are made under the terms of the [Developer Certificate of Origin](DCO.md).
