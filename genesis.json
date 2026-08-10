@@ -1,7 +1,7 @@
 {
   "chain_id": "minichain-default",
   "timestamp": 1716880000000,
-  "difficulty": 4,
+  "target": "0x0000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
   "target_block_time": 10000,
   "alpha": 0.1,
   "initial_supply": 1500000000,

@@ -27,9 +27,11 @@ def validate_block_link_and_hash(previous_block, block):
     if block.hash != expected_hash:
         raise ValueError(f"invalid hash {block.hash}")
 
-    target = "0" * (block.difficulty or 1)
-    if not block.hash.startswith(target):
-        raise ValueError(f"invalid Proof of Work: hash {block.hash} does not satisfy difficulty {block.difficulty}")
+    from .network_config import MAX_TARGET
+    if not isinstance(block.target, int) or block.target <= 0 or block.target > MAX_TARGET:
+        raise ValueError(f"invalid target: {block.target}")
+    if int(block.hash, 16) >= block.target:
+        raise ValueError(f"invalid Proof of Work: hash {block.hash} does not satisfy target {block.target}")
 
     if block.timestamp <= previous_block.timestamp:
         raise ValueError(f"invalid timestamp: {block.timestamp} is not strictly greater than previous block timestamp {previous_block.timestamp}")
@@ -88,11 +90,19 @@ class Blockchain:
         self.state.chain_id = self.chain_id
 
         timestamp = config.get("timestamp")
-        difficulty = config.get("difficulty")
+        raw_target = config.get("target")
+        if raw_target is None:
+            logger.error("Genesis block must explicitly specify a 'target'")
+            sys.exit(1)
+            
+        self.current_target = int(raw_target, 16) if isinstance(raw_target, str) else int(raw_target)
+        from .network_config import MAX_TARGET
+        if not isinstance(self.current_target, int) or self.current_target <= 0 or self.current_target > MAX_TARGET:
+            logger.error("Genesis target out of bounds: %s", self.current_target)
+            sys.exit(1)
         
         self.target_block_time = config.get("target_block_time", 10000)
         self.alpha = config.get("alpha", 0.1)
-        self.current_difficulty = difficulty
         self.avg_block_time = self.target_block_time
         
         genesis_block = Block(
@@ -100,7 +110,7 @@ class Blockchain:
             previous_hash="0",
             transactions=[],
             timestamp=timestamp,
-            difficulty=difficulty,
+            target=self.current_target,
             state_root=self.state.state_root(),
             receipt_root=None,
             receipts=[]
@@ -133,27 +143,33 @@ class Blockchain:
     def get_total_work(self, chain_list=None):
         """
         Calculates the cumulative PoW of a chain.
-        Work is proportional to 2^difficulty.
+        Work is inversely proportional to target.
         """
         if chain_list is None:
             with self._lock:
                 chain_list = self.chain
-        return sum(2 ** (block.difficulty or 1) for block in chain_list)
+        # The expected number of hashes required to find a block is (1 << 256) / target.
+        # This sums the expected number of hashes for all blocks in the chain,
+        # which represents the total computational work put into the chain.
+        return sum((1 << 256) // (block.target or 1) for block in chain_list)
 
-    def _next_difficulty(self, difficulty, avg_block_time):
-        """Advance the EMA difficulty control after a block, returning the new value."""
-        if avg_block_time > self.target_block_time:
-            return max(1, difficulty - 1)
-        if avg_block_time < self.target_block_time:
-            return difficulty + 1
-        return difficulty
+    def _next_target(self, target, avg_block_time):
+        """Advance the EMA target control after a block, returning the new value."""
+        from .network_config import MAX_TARGET, MIN_TARGET
+        
+        # Proportional difficulty adjustment:
+        # If blocks are too slow (avg_block_time > target_block_time), the target INCREASES (easier)
+        # If blocks are too fast (avg_block_time < target_block_time), the target DECREASES (harder)
+        new_target = (target * int(avg_block_time)) // self.target_block_time
+        
+        return max(MIN_TARGET, min(MAX_TARGET, new_target))
 
-    def _apply_block(self, prev_block, block, state, difficulty, avg_block_time):
+    def _apply_block(self, prev_block, block, state, target, avg_block_time):
         """
         Canonical block-application pipeline shared by add_block and resolve_conflicts.
         Validates `block` against `prev_block` and applies its transactions to `state`
         (mutated in place). On any non-VALID status the caller must discard `state`.
-        Returns: (ValidationStatus, new_difficulty, new_avg_block_time)
+        Returns: (ValidationStatus, new_target, new_avg_block_time)
         """
         from .validators import ValidationStatus
 
@@ -162,18 +178,18 @@ class Blockchain:
         except ValueError as exc:
             logger.warning("Block %s rejected: %s", block.index, exc)
             status = ValidationStatus.INVALID if "hash" in str(exc) else ValidationStatus.FAILED
-            return status, difficulty, avg_block_time
+            return status, target, avg_block_time
 
-        if block.difficulty != difficulty:
-            logger.warning("Block %s rejected: Invalid difficulty. Expected %s, got %s", block.index, difficulty, block.difficulty)
-            return ValidationStatus.INVALID, difficulty, avg_block_time
+        if block.target != target:
+            logger.warning("Block %s rejected: Invalid target. Expected %s, got %s", block.index, target, block.target)
+            return ValidationStatus.INVALID, target, avg_block_time
 
         receipts = []
         for tx in block.transactions:
             status, receipt = state.validate_and_apply_with_status(tx)
             if status != ValidationStatus.VALID:
                 logger.warning("Block %s rejected: Transaction failed validation", block.index)
-                return status, difficulty, avg_block_time
+                return status, target, avg_block_time
             receipts.append(receipt)
 
         total_fees = sum(getattr(r, 'gas_used', 0) * getattr(tx, 'fee_per_gas', 0) for r, tx in zip(receipts, block.transactions))
@@ -183,19 +199,19 @@ class Blockchain:
         computed_receipt_root = calculate_receipt_root(receipts)
         if block.receipt_root != computed_receipt_root:
             logger.warning("Block %s rejected: Invalid receipt root. Expected %s, got %s", block.index, computed_receipt_root, block.receipt_root)
-            return ValidationStatus.INVALID, difficulty, avg_block_time
+            return ValidationStatus.INVALID, target, avg_block_time
 
         if [r.to_dict() for r in block.receipts] != [r.to_dict() for r in receipts]:
             logger.warning("Block %s rejected: Receipts payload mismatch", block.index)
-            return ValidationStatus.INVALID, difficulty, avg_block_time
+            return ValidationStatus.INVALID, target, avg_block_time
 
         computed_state_root = state.state_root()
         if block.state_root != computed_state_root:
             logger.warning("Block %s rejected: Invalid state root. Expected %s, got %s", block.index, computed_state_root, block.state_root)
-            return ValidationStatus.INVALID, difficulty, avg_block_time
+            return ValidationStatus.INVALID, target, avg_block_time
 
         new_avg = self.alpha * (block.timestamp - prev_block.timestamp) + (1 - self.alpha) * avg_block_time
-        return ValidationStatus.VALID, self._next_difficulty(difficulty, new_avg), new_avg
+        return ValidationStatus.VALID, self._next_target(target, new_avg), new_avg
 
     def add_block(self, block):
         """
@@ -207,17 +223,21 @@ class Blockchain:
         with self._lock:
             temp_state = self.state.copy()
             temp_state.chain_id = self.chain_id
-            status, new_difficulty, new_avg = self._apply_block(
-                self.last_block, block, temp_state, self.current_difficulty, self.avg_block_time
+            status, new_target, new_avg = self._apply_block(
+                self.last_block, block, temp_state, self.current_target, self.avg_block_time
             )
             if status != ValidationStatus.VALID:
                 return status
 
             # All transactions valid → commit state and append block
+            if hasattr(temp_state.accounts, 'commit'):
+                temp_state.accounts.commit()
+                temp_state.accounts = temp_state.accounts.backing
             self.state = temp_state
-            self.current_difficulty = new_difficulty
+            self.current_target = new_target
             self.avg_block_time = new_avg
             self.chain.append(block)
+            
             return ValidationStatus.VALID
 
     def resolve_conflicts(self, new_chain_list) -> tuple[bool, list]:
@@ -249,6 +269,17 @@ class Blockchain:
 
             proposed_chain = self.chain[:fork_idx] + new_chain_list
 
+            # Fast PoW Check: Ensure incoming blocks actually satisfy their declared target
+            # before we trust their target to calculate total_work and rebuild state.
+            from .network_config import MAX_TARGET
+            for b in new_chain_list:
+                if not isinstance(b.target, int) or b.target <= 0 or b.target > MAX_TARGET:
+                    logger.warning("Reorg failed: Fast PoW check failed for block %s (invalid target)", b.index)
+                    return False, []
+                if int(b.hash, 16) >= b.target:
+                    logger.warning("Reorg failed: Fast PoW check failed for block %s (hash >= target)", b.index)
+                    return False, []
+
             current_work = self.get_total_work()
             new_work = self.get_total_work(proposed_chain)
 
@@ -264,13 +295,16 @@ class Blockchain:
             temp_state.chain_id = self.chain_id
             temp_state.restore(self._genesis_state_snapshot)
 
-            temp_difficulty = proposed_chain[0].difficulty
+            temp_target = proposed_chain[0].target
             temp_avg_block_time = self.target_block_time
 
             for i in range(1, len(proposed_chain)):
-                status, temp_difficulty, temp_avg_block_time = self._apply_block(
-                    proposed_chain[i - 1], proposed_chain[i], temp_state, temp_difficulty, temp_avg_block_time
+                status, temp_target, temp_avg_block_time = self._apply_block(
+                    proposed_chain[i - 1], proposed_chain[i], temp_state, temp_target, temp_avg_block_time
                 )
+                if hasattr(temp_state.accounts, 'commit'):
+                    temp_state.accounts.commit()
+                    temp_state.accounts = temp_state.accounts.backing
                 if status != ValidationStatus.VALID:
                     logger.warning("Reorg failed at block %s", proposed_chain[i].index)
                     return False, []
@@ -281,7 +315,8 @@ class Blockchain:
 
             self.chain = proposed_chain
             self.state = temp_state
-            self.current_difficulty = temp_difficulty
+            self.current_target = temp_target
             self.avg_block_time = temp_avg_block_time
+            
             logger.info("Reorg successful! Switched to new chain tip: Block %s", self.last_block.index)
             return True, orphans

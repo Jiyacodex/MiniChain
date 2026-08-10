@@ -1,7 +1,6 @@
 import time
 import hashlib
-from typing import Optional
-from collections.abc import Sequence
+from typing import Sequence, Optional
 
 from .transaction import Transaction
 from .receipt import Receipt
@@ -39,27 +38,27 @@ class Block:
         self,
         index: int,
         previous_hash: str,
-        transactions: Optional[Sequence[Transaction]] = None,
-        timestamp: Optional[float] = None,
-        difficulty: Optional[int] = None,
+        target: int,
+        transactions: Sequence[Transaction] = (),
+        timestamp: int = 0,
         state_root: Optional[str] = None,
         receipt_root: Optional[str] = None,
-        receipts: Optional[Sequence[Receipt]] = None,
+        receipts: Sequence[Receipt] = (),
         miner: Optional[str] = None,
     ):
         self.index = index
         self.previous_hash = previous_hash
         # Freeze transactions into an immutable tuple to prevent header/body mismatch
-        self.transactions = tuple(transactions) if transactions else ()
-        self.receipts = tuple(receipts) if receipts else ()
+        self.transactions = tuple(transactions)
+        self.receipts = tuple(receipts)
         self.miner = miner
         # Deterministic timestamp (ms)
         self.timestamp: int = (
             round(time.time() * 1000)
-            if timestamp is None
+            if timestamp == 0
             else int(timestamp)
         )
-        self.difficulty: Optional[int] = difficulty
+        self.target: int = target
         self.nonce: int = 0
         self.hash: Optional[str] = None
         self.state_root: Optional[str] = state_root
@@ -83,7 +82,7 @@ class Block:
             "state_root": self.state_root,
             "receipt_root": self.receipt_root,
             "timestamp": self.timestamp,
-            "difficulty": self.difficulty,
+            "target": hex(self.target),
             "nonce": self.nonce,
         }
         # Include miner in header only when present (optional field)
@@ -130,40 +129,41 @@ class Block:
             for r_payload in payload.get("receipts", [])
         ]
         
-        # Safely extract and cast difficulty and timestamp if they exist
-        raw_diff = payload.get("difficulty")
-        if raw_diff is not None:
-            parsed_diff = int(raw_diff)
-            if parsed_diff > 256:
-                raise ValueError(f"Difficulty too large: {parsed_diff}")
+        # Safely extract and cast target and timestamp if they exist
+        raw_target = payload.get("target")
+        if raw_target is not None:
+            from .network_config import MAX_TARGET
+            parsed_target = int(raw_target, 16) if isinstance(raw_target, str) else int(raw_target)
+            if not isinstance(parsed_target, int) or parsed_target <= 0 or parsed_target > MAX_TARGET:
+                raise ValueError(f"invalid target in payload: {parsed_target}")
         else:
-            parsed_diff = None
+            raise ValueError("missing target in payload")
 
         raw_ts = payload.get("timestamp")
-        parsed_ts = int(raw_ts) if raw_ts is not None else None
+        parsed_ts = int(raw_ts) if raw_ts is not None else 0
         block = cls(
             index=int(payload["index"]),
             previous_hash=payload["previous_hash"],
             transactions=transactions,
             timestamp=parsed_ts,
-            difficulty=parsed_diff,
+            target=parsed_target,
             state_root=payload.get("state_root"),
             receipt_root=payload.get("receipt_root"),
             receipts=receipts,
             miner=payload.get("miner"),
         )
-        block.nonce = int(payload.get("nonce", 0))
+        block.nonce = int(payload.get("nonce") or 0)
         block.hash = payload.get("hash")
 
         # Verify the block hash
         expected_hash = block.compute_hash()
-        if block.hash is not None and block.hash != expected_hash:
+        if block.hash and block.hash != expected_hash:
             raise ValueError("block hash does not match header")
 
         # Recalculate and verify the Merkle root!
         if "merkle_root" in payload and payload["merkle_root"] != block.merkle_root:
             raise ValueError("merkle_root does not match transactions")
-            
+    
         if "receipt_root" in payload:
             expected_receipt_root = calculate_receipt_root(block.receipts)
             if payload["receipt_root"] != expected_receipt_root:
@@ -175,7 +175,7 @@ class Block:
     def canonical_payload(self) -> bytes:
         """Returns the full block (header + body) as canonical bytes for networking."""
         # Sanity checks to prevent broadcasting invalid blocks
-        if self.hash is None:
+        if not self.hash:
             raise ValueError("block hash is missing")
         if self.hash != self.compute_hash():
             raise ValueError("block hash does not match header")
