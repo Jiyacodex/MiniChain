@@ -15,5 +15,14 @@ MEMPOOL_TX_PER_BLOCK = 100
 # Mining Config
 MINING_MAX_NONCE = 10_000_000 # Number of hashes to attempt before yielding the mining thread
 
+# Initial nonce range parameters (A and B).
+# Miners can configure these to create unique search ranges and avoid overlapping work.
+MINING_INITIAL_NONCE_MIN = 0
+
+# Recommended upper limit: 2**32 - 1 (4,294,967,295).
+# Keeping the upper limit around 32-bits ensures the nonce string in the JSON block
+# doesn't become unnecessarily large, and avoids cross-language serialization issues.
+MINING_INITIAL_NONCE_MAX = 2**32 - 1
+
 # State Config
 MAX_STATE_SNAPSHOTS = 10     # Number of recent block states to keep in memory for reorg optimization

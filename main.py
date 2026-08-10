@@ -162,7 +162,7 @@ def mine_and_process_block(chain, mempool, miner_pk):
         receipt_root=calculate_receipt_root(receipts),
         receipts=receipts,
         miner=miner_pk,
-        difficulty=chain.current_difficulty,
+        target=chain.current_target,
     )
 
     mined_block = mine_block(block)

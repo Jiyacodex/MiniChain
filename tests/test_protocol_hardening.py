@@ -16,8 +16,7 @@ class TestDeterministicConsensus(unittest.TestCase):
         self.assertEqual(calculate_hash(left), calculate_hash(right))
 
     def test_block_hash_matches_compute_hash(self):
-        block = Block(index=1, previous_hash="abc", transactions=[], timestamp=1234567890)
-        block.difficulty = 2
+        block = Block(index=1, previous_hash="abc", target=2, transactions=[], timestamp=1234567890)
         block.nonce = 7
 
         self.assertEqual(block.compute_hash(), calculate_hash(block.to_header_dict()))
@@ -117,7 +116,7 @@ class TestP2PValidationAndDedup(unittest.IsolatedAsyncioTestCase):
             previous_hash="0" * 64, 
             transactions=[tx], 
             timestamp=1600000000000, 
-            difficulty=2, 
+            target=int("F"*64, 16), 
             state_root="0"*64,
             receipts=[receipt],
             receipt_root=calculate_receipt_root([receipt])
@@ -150,7 +149,7 @@ class TestP2PValidationAndDedup(unittest.IsolatedAsyncioTestCase):
                 "previous_hash": "0" * 64,
                 "transactions": [tx_message["data"]],
                 "timestamp": 123,
-                "difficulty": 2,
+                "target": int("F"*64, 16),
                 "nonce": 1,
                 "hash": "f" * 64,
             },
