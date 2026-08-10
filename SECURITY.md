@@ -8,10 +8,7 @@ MiniChain does not yet have tagged releases or a formal versioning scheme. Secur
 
 **Please do not open a public GitHub Issue for security vulnerabilities.** Publicly disclosing a vulnerability before it's fixed can put users at risk.
 
-Instead, report it privately using one of these channels:
-
-1. **GitHub Private Vulnerability Reporting** (preferred): open a report via the "Security" tab on the [MiniChain repository](https://github.com/StabilityNexus/MiniChain/security/advisories/new).
-2. **Email:** [zahnentferner@gmail.com](mailto:zahnentferner@gmail.com) — include "MiniChain Security" in the subject line.
+Instead, report it privately via **GitHub Private Vulnerability Reporting**: open a report using the "Security" tab on the [MiniChain repository](https://github.com/StabilityNexus/MiniChain/security/advisories/new).
 
 Please include as much of the following as you can:
 
