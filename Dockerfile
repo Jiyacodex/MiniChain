@@ -3,7 +3,11 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc python3-dev libffi-dev libgmp-dev \
+    && apt-get install -y --no-install-recommends \
+        gcc=4:14.2.0-1 \
+        python3-dev=3.13.5-1 \
+        libffi-dev=3.4.8-2 \
+        libgmp-dev=2:6.3.0+dfsg-3 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
