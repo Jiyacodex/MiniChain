@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "minichain"
+version = "0.1.0-beta"
+description = "MiniChain — a minimal proof-of-work blockchain node"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "pynacl==1.6.2",
+    "trie>=3.1.0",
+    "libp2p",
+    "aiohttp>=3.10.11",
+    "multiaddr",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+minichain = "main:main"
+
+[project.urls]
+Homepage = "https://github.com/StabilityNexus/MiniChain"
+
+[tool.setuptools]
+py-modules = ["main"]
+
+[tool.setuptools.packages.find]
+include = ["minichain*"]
