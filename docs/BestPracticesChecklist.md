@@ -28,12 +28,12 @@
 | Category           | Met | Total | Status |
 |--------------------|-----|-------|--------|
 | Basics             | 8   | 8     | 🟢     |
-| Change Control     | 3   | 6     | 🟡     |
+| Change Control     | 6   | 6     | 🟢     |
 | Reporting          | 6   | 8     | 🟡     |
 | Quality            | 7   | 11     | 🟡     |
 | Security           | 9   | 9     | 🟢     |
 | Analysis           | 3   | 7     | 🔴     |
-| **Total**          | **36** | **49** | **73%** |
+| **Total**          | **39** | **49** | **80%** |
 ---
 
 ## 🏗️ Basics
@@ -77,19 +77,19 @@
 
 ### Version Numbering
 
-- [ ] 🔴 **version_unique** — Each release has a unique version identifier (e.g., v1.0.0).
-  - *Evidence URL:* None — no tagged releases exist yet (`git tag` is empty).
+- [x] 🔴 **version_unique** — Each release has a unique version identifier (e.g., v1.0.0).
+  - *Evidence URL:* [pyproject.toml](../pyproject.toml) (`version = "0.1.0-beta"`), released via `vX.Y.Z` git tags per [.github/workflows/release.yml](../.github/workflows/release.yml).
 
-- [ ] 🔵 **version_semver** — Project uses [SemVer](https://semver.org) or [CalVer](https://calver.org/) format. *(SUGGESTED)*
-  - *Note:* No versioning scheme is in use yet; no `__version__`/package version found in the repo.
+- [x] 🔵 **version_semver** — Project uses [SemVer](https://semver.org) or [CalVer](https://calver.org/) format. *(SUGGESTED)*
+  - *Note:* Tags match `v[0-9]+.[0-9]+.[0-9]+*` (see [.github/workflows/release.yml](../.github/workflows/release.yml) trigger), SemVer-style.
 
-- [ ] 🔵 **version_tags** — Releases are tagged in the VCS (e.g., `git tag v1.0.0`). *(SUGGESTED)*
-  - *Evidence URL:* None — repository has no tags.
+- [x] 🔵 **version_tags** — Releases are tagged in the VCS (e.g., `git tag v1.0.0`). *(SUGGESTED)*
+  - *Evidence URL:* [.github/workflows/release.yml](../.github/workflows/release.yml) — release builds are tag-triggered.
 
 ### Release Notes
 
 - [x] 🔴 **release_notes** — Each release includes human-readable release notes summarizing major changes. Raw `git log` output is NOT acceptable.
-  - *Evidence URL:* `[x]` N/A — *Justification: project has not cut any releases yet; it is developed via continuous commits to `main`. Revisit once the first tagged release is planned.*
+  - *Evidence URL:* [.github/workflows/release.yml](../.github/workflows/release.yml) — `generate_release_notes: true` on the GitHub Release step.
 
 - [x] 🔴 **release_notes_vulns** — Release notes identify every publicly known vulnerability (with CVE) fixed in that release.
   - *Evidence URL:* `[x]` N/A — *Justification: no releases exist yet, and no publicly known CVEs affect the project.*
@@ -255,7 +255,7 @@
 - For `dynamic_analysis`: consider adversarial input testing as a form of dynamic analysis.
 
 ### MiniChain-Specific Notes
-- Biggest open gaps found by this pass: no linter in CI (blocks all three `warnings_*` items), and no static/dynamic analysis tooling (blocks all of Analysis except the N/A items). Tagging a first release would also unlock the Change Control items. [SECURITY.md](../SECURITY.md) was added, closing the `vulnerability_report_process`/`vulnerability_report_private` gaps.
+- Biggest open gaps found by this pass: no linter in CI (blocks all three `warnings_*` items), and no static/dynamic analysis tooling (blocks all of Analysis except the N/A items). [SECURITY.md](../SECURITY.md) was added, closing the `vulnerability_report_process`/`vulnerability_report_private` gaps, and the tag-triggered [release workflow](../.github/workflows/release.yml) closes the Change Control items.
 - `report_responses` / `enhancement_responses` need a manual pass over GitHub Issues history — not derivable from the repo contents.
 
 ---

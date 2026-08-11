@@ -4,7 +4,7 @@ MiniChain is a minimal, fully functional blockchain implemented in Python, built
 
 ## Logo
 
-MiniChain's mark is an octahedron-style wireframe: eight triangular edges radiating from a central point, each vertex marked with a glowing node. It's meant to evoke a network graph — nodes connected by edges — rather than a literal chain, which fits a project about distributed state rather than links in a chain.
+MiniChain's mark is a 4D hypercube (tesseract) projected onto 2 dimensions: eight overlapping edge-paths radiating from a central point, each vertex marked with a glowing node. It's meant to evoke a network graph — nodes connected by edges — rather than a literal chain, which fits a project about distributed state rather than links in a chain.
 
 - [`logo.svg`](logo.svg) — the MiniChain mark, 330×330, transparent background. Use this as the primary logo wherever MiniChain is referenced on its own.
 - [`org-logo.svg`](org-logo.svg) — the Stability Nexus organization mark, 500×500. Use alongside the MiniChain logo when representing the org/project pairing (as in the [README](../README.md) header), never as a substitute for it.
@@ -13,7 +13,7 @@ MiniChain's mark is an octahedron-style wireframe: eight triangular edges radiat
 
 - Keep clear space around the logo equal to at least the radius of one vertex node.
 - Do not recolor the gradient — it is the identifying feature of the mark.
-- Do not stretch or skew; the mark is designed as a regular octahedron and should scale uniformly.
+- Do not stretch or skew; the projection's proportions are fixed and should scale uniformly.
 - Minimum display size: 32px, below which the vertex nodes become illegible.
 
 ## Favicons and Icons

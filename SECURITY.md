@@ -2,7 +2,13 @@
 
 ## Supported Versions
 
-MiniChain does not yet have tagged releases or a formal versioning scheme. Security fixes are applied to the latest commit on `main`, which is the only version supported.
+MiniChain is released via tagged versions (`vX.Y.Z`, [SemVer](https://semver.org)), built and published automatically by [.github/workflows/release.yml](.github/workflows/release.yml) whenever a matching tag is pushed. While the project is pre-1.0 (currently `0.1.0-beta`), only the latest tagged release and `main` receive security fixes — older tags are not backported to.
+
+| Version         | Supported          |
+| ---------------- | -------------------- |
+| Latest tagged release | ✅ |
+| `main` (unreleased) | ✅ |
+| Older tagged releases | ❌ |
 
 ## Reporting a Vulnerability
 
@@ -36,7 +42,7 @@ Given MiniChain's goals — education, research, and innovation on a minimal blo
 - P2P protocol issues that allow a peer to crash, partition, or deny service to a node (see `minichain/p2p.py`).
 - JSON-RPC issues that allow unauthorized access to node data or funds (see `minichain/rpc.py`).
 
-Out of scope: issues in vendored third-party binaries (`bore_bin/`, `bore.zip`) should be reported upstream to their respective projects.
+Out of scope: issues in vendor third-party binaries (`bore_bin/`, `bore.zip`) should be reported upstream to their respective projects.
 
 ## Questions
 
