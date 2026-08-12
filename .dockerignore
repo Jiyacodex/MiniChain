@@ -1,0 +1,17 @@
+.git
+.github
+.pytest_cache
+__pycache__
+*.pyc
+.minichain
+tests/
+examples/
+public/
+bore.zip
+bore_bin/
+dist/
+build/
+*.egg-info/
+README.md
+Contributors.md
+DCO.md
